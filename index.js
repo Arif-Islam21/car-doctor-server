@@ -20,6 +20,20 @@ app.use(express.json());
 app.use(cookieParser());
 
 // custom middleware
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).send({ message: "not authorized" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "forbidden" });
+    }
+    console.log("value in the token is", decoded);
+    req.user = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.n7e36sw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -46,13 +60,9 @@ async function run() {
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
-      res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: false,
-        })
-        .send({ message: "success" });
+      res.cookie("token", token).send({ message: "success" });
     });
+
     // services related apis
     app.get("/services", async (req, res) => {
       const cursor = serviceCollection.find();
@@ -72,8 +82,10 @@ async function run() {
 
     // bookings
 
-    app.get("/bookings", async (req, res) => {
-      console.log("token is", req.cookies.token);
+    app.get("/bookings", verifyToken, async (req, res) => {
+      if (req.user.email !== req.query.email) {
+        return res.status(403).send({ message: "forbidden" });
+      }
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
