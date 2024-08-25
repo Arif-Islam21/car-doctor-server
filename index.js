@@ -1,8 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-// working with jwt
 const jwt = require("jsonwebtoken");
+// working with jwt
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 
@@ -12,7 +12,7 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );
@@ -20,30 +20,6 @@ app.use(express.json());
 app.use(cookieParser());
 
 // custom middleware
-const logger = async (req, res, next) => {
-  console.log("caled", req.host, req.originalUrl);
-  next();
-};
-
-const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token;
-  console.log("value of token ", token);
-  if (!token) {
-    return res.status(401).send({ message: "not authoriezed" });
-  }
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    // error
-    if (err) {
-      console.log(err);
-      return res.status(401).send({ message: "unAuthorized" });
-    }
-
-    // decoded
-    console.log("value in the token", decoded);
-    req.user = decoded;
-    next();
-  });
-};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.n7e36sw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -65,23 +41,20 @@ async function run() {
     const bookingCollection = client.db("carDoctor").collection("bookings");
 
     // Auth related apis
-    app.post("/jwt", logger, async (req, res) => {
+    app.post("/jwt", async (req, res) => {
       const user = req.body;
-      console.log(user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
-
       res
         .cookie("token", token, {
           httpOnly: true,
           secure: false,
         })
-        .send({ success: true });
+        .send({ message: "success" });
     });
-
     // services related apis
-    app.get("/services", logger, async (req, res) => {
+    app.get("/services", async (req, res) => {
       const cursor = serviceCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -99,8 +72,8 @@ async function run() {
 
     // bookings
 
-    app.get("/bookings", logger, verifyToken, async (req, res) => {
-      console.log(req.user);
+    app.get("/bookings", async (req, res) => {
+      console.log("token is", req.cookies.token);
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
